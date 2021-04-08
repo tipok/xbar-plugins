@@ -27,7 +27,10 @@ for d in $repos ; do
     number_of_psr=$(echo $prs | sed '/^\s*$/d' | wc -l | sed 's/^[[:space:]]*//')
     if [[ $number_of_psr -ne 0 ]]; then
         all_prs=$(($all_prs + $number_of_psr))
-        BODY=$BODY$'\n'"$d ($number_of_psr)"
+        if [ ! -z "$BODY" ]; then
+            BODY=$BODY$'\n'
+        fi
+        BODY="$BODY $d ($number_of_psr)"
         BODY=$BODY$'\n'$prs
         BODY=$BODY$'\n---'
     fi
