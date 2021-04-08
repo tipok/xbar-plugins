@@ -23,7 +23,7 @@ all_prs=0
 HEADER="Open PRs"
 BODY=""
 for d in $repos ; do
-    prs=$(gh pr list --repo "$GITHUB_HOST/$d" -S 'is:pr is:open archived:false review-requested:@me' | awk -v github_host=$GITHUB_HOST -v repo=$d '{split($0,a, "\t"); print "#"a[1]" "a[2]" ("a[4]") | href=\"https://"github_host"/"repo"/pull/"a[1]"\"" }')
+    prs=$(gh pr list --repo "$GITHUB_HOST/$d" -S 'is:pr is:open archived:false review-requested:@me' | awk -v github_host=$GITHUB_HOST -v repo=$d '{split($0,a, "\t"); print "#"a[1]" ("a[4]") "a[2]" | href=\"https://"github_host"/"repo"/pull/"a[1]"\"" }')
     number_of_psr=$(echo $prs | sed '/^\s*$/d' | wc -l | sed 's/^[[:space:]]*//')
     if [[ $number_of_psr -ne 0 ]]; then
         all_prs=$(($all_prs + $number_of_psr))
