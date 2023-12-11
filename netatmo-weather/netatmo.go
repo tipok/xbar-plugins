@@ -1,8 +1,11 @@
 package main
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"golang.org/x/oauth2"
+	"log"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -16,14 +19,15 @@ const (
 	indoorModuleType  = "NAModule4"
 	outdoorModuleType = "NAModule1"
 	mainModuleType    = "NAMain"
+	baseURL           = "https://api.netatmo.net/"
+	authURL           = baseURL + "oauth2/token"
 )
 
-// API credentials
+// NetatmoConfig API credentials
 type NetatmoConfig struct {
 	ClientID     string `toml:"client_id"`
 	ClientSecret string `toml:"client_secret"`
-	Username     string `toml:"username"`
-	Password     string `toml:"password"`
+	RefreshToken string `toml:"refresh_token"`
 }
 
 func main() {
@@ -33,20 +37,32 @@ func main() {
 		os.Exit(1)
 	}
 
-	n, err := netatmo.NewClient(netatmo.Config{
+	oauth := &oauth2.Config{
 		ClientID:     config.ClientID,
 		ClientSecret: config.ClientSecret,
-		Username:     config.Username,
-		Password:     config.Password,
-	})
+		Scopes:       []string{"read_station"},
+		Endpoint: oauth2.Endpoint{
+			AuthURL:   baseURL,
+			TokenURL:  authURL,
+			AuthStyle: oauth2.AuthStyleInParams,
+		},
+	}
+
+	token := &oauth2.Token{RefreshToken: config.RefreshToken}
+	tokenSource := oauth.TokenSource(context.Background(), token)
+	_, _ = tokenSource.Token()
+	httpClient := oauth.Client(context.Background(), token)
+
+	n, err := netatmo.NewClient(httpClient)
+
 	if err != nil {
-		fmt.Println(err)
+		log.Printf("%+v", err)
 		os.Exit(1)
 	}
 
 	dc, err := n.Read()
 	if err != nil {
-		fmt.Println(err)
+		log.Printf("%+v", err)
 		os.Exit(1)
 	}
 
@@ -115,6 +131,19 @@ func main() {
 			}
 			fmt.Println("---")
 		}
+
+		tk, err := tokenSource.Token()
+		if err != nil {
+			log.Printf("%+v", err)
+			os.Exit(1)
+		}
+
+		config.RefreshToken = tk.RefreshToken
+		err = writeConfig(config)
+		if err != nil {
+			log.Printf("%+v", err)
+			os.Exit(1)
+		}
 	}
 }
 
@@ -145,6 +174,18 @@ func readConfig() (*NetatmoConfig, error) {
 		return nil, err
 	}
 	return &config, nil
+}
+
+func writeConfig(config *NetatmoConfig) error {
+	configFilePath := getConfigFilePath()
+	if configFilePath == "" {
+		return errors.New("no config file found")
+	}
+	cf, err := os.Create(configFilePath)
+	if err != nil {
+		return errors.New("could not open file")
+	}
+	return toml.NewEncoder(cf).Encode(config)
 }
 
 func getDisplayType(module *netatmo.Device) string {
